@@ -83,7 +83,7 @@ public class MovieService {
      * @param searchEntry - name of Movie to search for
      * @return ResponseEntity containing http status and List of Movies found
      */
-    public ResponseEntity<?> searchMovies (String apiKey, String searchEntry) {
+    public ResponseEntity searchMovies (String apiKey, String searchEntry) {
         List<MovieInfo> movieInfoList = new ArrayList<>();
 
        try {
@@ -104,7 +104,7 @@ public class MovieService {
             }
             else{
                 System.out.println("No results returned from Search entry");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(results.get("Invalid Search Entry"));
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(results.get("Error"));
             }
 
         } catch (FeignException | IllegalArgumentException | HttpStatusCodeException e) {
@@ -125,7 +125,7 @@ public class MovieService {
         MovieResult movieResult = getMovieInfoById(apiKey,imdbId);
         MovieInfo newFavorite = movieResult.getData();
 
-        if(newFavorite != null) {
+        if(newFavorite != null && !favoritesList.contains(newFavorite)) {
             favoritesList.add(newFavorite);
               }
 
@@ -147,6 +147,11 @@ public class MovieService {
                     movieResult.setStatusCode(HttpStatus.OK);
                     System.out.println(movieResult.getData());
                 }
+            }
+            if(movieResult.getStatusCode() == null)
+            {
+                movieResult.setStatusCode(HttpStatus.BAD_REQUEST);
+                movieResult.setErrorMsg("Unable to find IMDB ID in List");
             }
         }
         catch (NullPointerException e) {
