@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: omdb-movie-api
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 5000
+            loggerLevel: basic
+
+server:
+  port: 8089
+
+omdb:
+  url: "https://www.omdbapi.com/"
