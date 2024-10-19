@@ -6,6 +6,7 @@ import com.kev.omdb.omdb_movie_api.api.OmdbApi;
 import com.kev.omdb.omdb_movie_api.model.MovieInfo;
 import com.kev.omdb.omdb_movie_api.model.MovieResult;
 import com.kev.omdb.omdb_movie_api.service.MovieService;
+import com.kev.omdb.omdb_movie_api.util.ValidationUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -28,24 +29,28 @@ public class MovieServiceTest {
     private OmdbApi omdbApi;
 
     @Mock
+    private ValidationUtil validationUtil;
+
+    @Mock
     private List<MovieInfo> favoritesList;
 
     private MovieService movieService;
     private MovieService movieServiceSpy;
+
     private MovieInfo movieInfo;
     private MovieInfo movieInfo2;
     private MovieResult movResult;
 
     private Map<String, Object> movieResult;
-    private List<MovieInfo> searchResults;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
 
         favoritesList = new ArrayList<MovieInfo>();
+        validationUtil = new ValidationUtil(objectMapper);
 
-        movieService = new MovieService(omdbApi,objectMapper,favoritesList);
+        movieService = new MovieService(omdbApi,validationUtil,objectMapper,favoritesList);
         movieServiceSpy = Mockito.spy(movieService);
 
         movieInfo = new MovieInfo();
@@ -56,10 +61,6 @@ public class MovieServiceTest {
         movieInfo.setYear("1999");
         movieInfo.setPlot("A horror movie");
 
-        movResult = new MovieResult();
-        movResult.setData(movieInfo);
-        movResult.setStatusCode(HttpStatus.OK);
-
         movieInfo2 = new MovieInfo();
         movieInfo2.setTitle("Lion King");
         movieInfo2.setGenre("Cartoon");
@@ -68,7 +69,9 @@ public class MovieServiceTest {
         movieInfo2.setYear("1993");
         movieInfo2.setPlot("A cartoon movie");
 
-
+        movResult = new MovieResult();
+        movResult.setData(movieInfo);
+        movResult.setStatusCode(HttpStatus.OK);
 
         movieResult = Map.ofEntries(
                 Map.entry("Title", "Toy Story"),
@@ -79,8 +82,6 @@ public class MovieServiceTest {
                 Map.entry("Plot", "A cartoon about toys"),
                 Map.entry("Response", "True")
         );
-
-        searchResults = new ArrayList<>();
 
     }
 
@@ -93,7 +94,6 @@ public class MovieServiceTest {
         MovieInfo result = movieService.getMovieInfoById("4387","tt67890").getData();
 
         assertEquals(movieInfo.getTitle(),result.getTitle());
-
     }
 
     //test getMovieInfoById Failure
@@ -120,7 +120,6 @@ public class MovieServiceTest {
         movieService.addFavorite("4387","tt67890");
 
         assertEquals(1,movieService.getFavoritesList().size());
-
     }
 
     //Test to validate Add Favorite Success

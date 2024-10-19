@@ -14,6 +14,7 @@ package com.kev.omdb.omdb_movie_api.service;
 import com.kev.omdb.omdb_movie_api.api.OmdbApi;
 import com.kev.omdb.omdb_movie_api.model.MovieInfo;
 import com.kev.omdb.omdb_movie_api.model.MovieResult;
+import com.kev.omdb.omdb_movie_api.util.ValidationUtil;
 import feign.FeignException;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,8 +24,6 @@ import org.springframework.stereotype.Service;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.web.client.HttpStatusCodeException;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +35,9 @@ public class MovieService {
     @Autowired
     OmdbApi omdbApi;
 
+    @Autowired
+    ValidationUtil validationUtil;
+
     private ObjectMapper mapper = new ObjectMapper();
     private List<MovieInfo> favoritesList = new ArrayList<>();
 
@@ -43,37 +45,30 @@ public class MovieService {
      *
      * @param apikey - apiKey used for omdb endpoint
      * @param imdbId - id of movie to get info for
-     * @return MoveInfo object that contains details on Movie found, null if nothing found
+     * @return MovieResult -contains MovieInfo and OK status if Success or contains BAD REQUEST status + error msg otherwise
      */
     public MovieResult getMovieInfoById(String apikey, String imdbId){
-        Map<String, Object> ob;
+        Map<String, Object> resultObject;
         MovieInfo movie = null;
         MovieResult movieResult = new MovieResult();
 
-        try {
-            ob = omdbApi.getMovieInfoById(apikey, imdbId);
-
-            if(ob != null) {
-                if(!ob.containsValue("False") ){
-                    movieResult.setData(mapper.convertValue(ob,MovieInfo.class));
-                    movieResult.setStatusCode(HttpStatus.OK);
-                }
-                else{
-                    System.out.println(ob.get("Error"));
-                    movieResult.setErrorMsg( ob.get("Error"));
-                    movieResult.setStatusCode(HttpStatus.BAD_REQUEST);
-                }
+        if(validationUtil.validateImdbId(imdbId)) {
+            try {
+                resultObject = omdbApi.getMovieInfoById(apikey, imdbId);
+                validationUtil.validateMovieInfoById(movieResult,resultObject);
             }
-            else {
-                System.out.println("inside of null else:");
-                movieResult.setErrorMsg( "Null value returned");
+            catch (FeignException e) {
+                e.printStackTrace();
+                movieResult.setErrorMsg( e.getMessage());
                 movieResult.setStatusCode(HttpStatus.BAD_REQUEST);
             }
-        } catch (FeignException e) {
-            e.printStackTrace();
-            movieResult.setErrorMsg( e.getMessage());
+        }
+        else
+        {
+            movieResult.setErrorMsg( "Invalid IMDB ID Provided");
             movieResult.setStatusCode(HttpStatus.BAD_REQUEST);
         }
+
         return movieResult;
     }
 
@@ -85,19 +80,15 @@ public class MovieService {
      */
     public ResponseEntity searchMovies (String apiKey, String searchEntry) {
         List<MovieInfo> movieInfoList = new ArrayList<>();
+        Map<String,Object> results;
 
        try {
-           Map<String,Object> results = omdbApi.searchMovies(apiKey,searchEntry);
+            results = omdbApi.searchMovies(apiKey,searchEntry);
             if(!results.isEmpty() && results.get("Response").equals("True")) {
 
                 ArrayList<Object> resultsList = mapper.convertValue(results.get("Search"),ArrayList.class);
 
-                int resultsSize = 3;
-
-                if(resultsList.size() < 3)
-                    resultsSize = resultsList.size();
-
-                for(int i = 0; i < resultsSize; i++) {
+                for(int i = 0; i < 3; i++) {
                     MovieInfo movie = mapper.convertValue(resultsList.get(i),MovieInfo.class);
                     movieInfoList.add(getMovieInfoById(apiKey,movie.getImdbId()).getData());
                 }
@@ -107,7 +98,7 @@ public class MovieService {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(results.get("Error"));
             }
 
-        } catch (FeignException | IllegalArgumentException | HttpStatusCodeException e) {
+        } catch (FeignException | IllegalArgumentException  e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
@@ -119,7 +110,7 @@ public class MovieService {
      *
      * @param apiKey - apiKey used for omdb endpoint
      * @param imdbId - movie to add to favorites list
-     * @return boolean - true if able to add, false if invalid value
+     * @return MovieResult -contains MovieInfo and OK status if Success or contains BAD REQUEST status + error msg otherwise
      */
     public MovieResult addFavorite(String apiKey,String imdbId) {
         MovieResult movieResult = getMovieInfoById(apiKey,imdbId);
@@ -135,30 +126,12 @@ public class MovieService {
     /**
      *
      * @param imdbId - movie to remove from favorites list
-     * @return boolean - true if able to remove, false if not found/null value in imdbId
+     * @return MovieResult -contains MovieInfo and OK status if Success or contains BAD REQUEST status + error msg otherwise
      */
     public MovieResult removeFavorite(String imdbId) {
         MovieResult movieResult = new MovieResult();
 
-        try {
-            for(MovieInfo mov: favoritesList) {
-                if(mov.getImdbId().equals(imdbId)){
-                    movieResult.setData(mov);
-                    movieResult.setStatusCode(HttpStatus.OK);
-                    System.out.println(movieResult.getData());
-                }
-            }
-            if(movieResult.getStatusCode() == null)
-            {
-                movieResult.setStatusCode(HttpStatus.BAD_REQUEST);
-                movieResult.setErrorMsg("Unable to find IMDB ID in List");
-            }
-        }
-        catch (NullPointerException e) {
-            movieResult.setErrorMsg(e.getMessage());
-            movieResult.setStatusCode(HttpStatus.BAD_REQUEST);
-            System.out.println(e.getMessage());
-        }
+        validationUtil.validateRemoveFavorite(movieResult,favoritesList,imdbId);
 
         if(movieResult.getStatusCode() == HttpStatus.OK)
             favoritesList.remove(movieResult.getData());
